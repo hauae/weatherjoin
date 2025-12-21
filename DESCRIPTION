@@ -5,6 +5,8 @@ Version: 0.0.1
 Authors@R: c(
     person("Przemek", "Dolowy", email = "pdolowy@harper-adams.ac.uk", role = c("aut", "cre"), comment = c(affiliation = "Harper Adams University"))
   )
+URL: https://github.com/hauae/weatherjoin
+BugReports: https://github.com/hauae/weatherjoin/issues
 Description: High-level tools to attach gridded weather data from the NASA POWER project
     to event-based datasets. The package plans efficient spatio-temporal API calls,
     caches downloaded segments locally, and joins weather variables back to the input
@@ -27,5 +29,7 @@ Suggests:
     knitr,
     rmarkdown,
     withr
+Depends:
+    R (>= 4.1.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
