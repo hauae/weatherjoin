@@ -14,7 +14,6 @@ Description: High-level tools to attach gridded weather data from the NASA POWER
     R package. This package is not affiliated with or endorsed by NASA.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:

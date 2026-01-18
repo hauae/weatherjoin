@@ -1,0 +1,360 @@
+---
+title: "Joining Weather Data to Event Tables with {weatherjoin}"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Joining Weather Data to Event Tables with weatherjoin}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+The **weatherjoin** package attaches gridded weather data to event-based datasets
+in a reliable, efficient, and reproducible way.
+
+Typical use cases include:
+- adding air temperature or precipitation to experimental observations,
+- linking weather data to monitoring events,
+- enriching spatial point data with meteorological context.
+
+The package is designed around four core principles:
+
+1. **Explicit time handling** – timestamps are validated and standardized before any data are requested.
+2. **Efficient API usage** – weather data are requested only when needed, and only for the required spatial and temporal extent.
+3. **Local caching** – downloaded weather segments are stored locally and reused across sessions.
+4. **Safe joining** – weather values are joined back to the user’s data using exact or controlled rolling joins.
+
+Currently, `weatherjoin` supports the **NASA POWER** data service via the `{nasapower}` package.
+
+## Basic usage
+
+At minimum, you need:
+- a table with latitude and longitude,
+- a time column (or columns),
+- a list of weather parameters.
+
+```r
+library(weatherjoin)
+
+out <- join_weather(
+  x = events,
+  params = c("T2M", "PRECTOTCORR"),
+  time = "event_time",
+  lat_col = "lat",
+  lon_col = "lon"
+)
+```
+
+The result is the original table with weather variables appended.
+
+## Time handling in detail
+
+weatherjoin always requests and works with UTC weather timestamps from NASA POWER.
+Your input time is interpreted using the tz argument, then standardised internally to UTC for planning, caching, and joining.
+
+## What tz means
+
+tz is the timezone used to interpret your event time input when it is not already a fully specified instant.
+
+- If your time column is POSIXct, it already represents an instant. tz mainly affects printing, but weatherjoin still standardises internal time to UTC for consistent joins.
+
+- If your time column is character (e.g. "2024-06-01 12:00"), weatherjoin parses it using tz.
+
+- If your time column is Date or is assembled from components (YEAR, MO, DY, etc.), weatherjoin constructs a timestamp using tz.
+
+If your event timestamps are recorded in local clock time (for example UK time), set:
+
+```r
+join_weather(..., tz = "Europe/London")
+```
+
+weatherjoin will interpret them as Europe/London and convert internally to UTC before matching with POWER data.
+
+## Single-column time input
+
+The time argument may refer to a single column containing any of:
+
+- POSIXct timestamps
+
+- Date
+
+- character timestamps
+
+- numeric YYYYMMDD values
+
+Examples:
+
+```r
+join_weather(x, params = "T2M", time = "event_time")     # POSIXct or character
+join_weather(x, params = "T2M", time = "event_date")    # Date
+join_weather(x, params = "T2M", time = "event_yyyymmdd")# numeric YYYYMMDD
+```
+
+Hourly requirements are enforced: if you request hourly weather but provide only a date (no hour information), weatherjoin will raise an error rather than guessing.
+
+## Multi-column time input
+
+You can also provide multiple columns, which weatherjoin will assemble into a timestamp. Supported schemas include:
+
+- YEAR, MO, DY, HR (hourly)
+
+- YEAR, MO, DY (daily)
+
+- YEAR, DOY (daily)
+
+- YYYY, MM, DD (daily)
+
+Example:
+
+```r
+join_weather(x, params = "T2M", time = c("YEAR", "MO", "DY", "HR"))
+```
+
+All components are validated:
+
+- month values must be 1-12
+
+- hour values must be 0-23
+
+- calendar dates must exist (e.g. February 31 is rejected)
+
+- day-of-year (DOY) values respect leap years
+
+Invalid inputs always produce informative errors.
+
+- time_api: guessing and contradictions
+
+- time_api controls whether hourly or daily NASA POWER data are used.
+
+- time_api = "guess": inferred from whether your input contains hour information
+
+- time_api = "daily" with hourly input: allowed (input is downsampled to dates)
+
+- time_api = "hourly" with date-only input: error (hour information is required)
+
+This design avoids silent mistakes while remaining flexible.
+
+## Daily timestamps and the dummy hour
+
+Daily POWER data have no time-of-day.
+When constructing timestamps for daily data, weatherjoin assigns a configurable "dummy hour" (default: 12:00) to ensure consistent internal handling.
+
+Advanced users can change this via:
+
+```r
+options(weatherjoin.dummy_hour = 12)
+```
+
+This does not change the meaning of daily weather values; it only affects the internally constructed timestamp used for planning and joining.
+
+### Single-column timestamps
+
+The `time` argument can point to a single column containing:
+
+- `POSIXct` timestamps,
+- `Date` values,
+- character timestamps (e.g. `"2024-06-01 12:00"`),
+- numeric `YYYYMMDD` values.
+
+Examples:
+
+```r
+time = "event_time"     # POSIXct or character
+time = "event_date"     # Date
+time = "event_yyyymmdd" # numeric YYYYMMDD
+```
+
+### Multi-column timestamps
+
+Alternatively, you can provide multiple columns that are assembled into a timestamp:
+
+```r
+time = c("YEAR", "MO", "DY", "HR")
+time = c("YEAR", "MO", "DY")
+time = c("YEAR", "DOY")
+```
+
+Column roles are inferred from names (e.g. `YEAR`, `MO`, `DY`, `HR`, `DOY`) and validated.
+
+### Daily vs hourly data (`time_api`)
+
+The `time_api` argument controls whether daily or hourly weather data are used:
+
+- `"guess"` (default): inferred from the input time structure,
+- `"daily"`: forces daily aggregation,
+- `"hourly"`: requires hour-level input.
+
+Rules are strict and explicit:
+
+- Hourly input → daily output is allowed (timestamps are downsampled).
+- Daily input → hourly output is **not** allowed and results in an error.
+
+This avoids silent misinterpretation of time resolution.
+
+## Spatial handling and representative locations
+
+Weather data are typically provided on a spatial grid. When many nearby points are present, requesting data separately for each point would be inefficient.
+
+`weatherjoin` therefore supports **spatial reduction** before calling the provider:
+
+- `"exact"` – each unique coordinate is queried separately.
+- `"by_group"` – points are grouped (e.g. by site or field), and one representative location per group is used.
+- `"cluster"` – points within a specified radius are clustered automatically.
+
+Example using grouping:
+
+```r
+join_weather(
+  x = events,
+  params = "T2M",
+  time = "event_time",
+  spatial_mode = "by_group",
+  group_col = "site_id"
+)
+```
+
+Each group is reduced to a representative coordinate (median or centroid),
+and weather data are fetched once per group.
+
+## Efficient time-range planning (splitting sparse ranges)
+
+Event data often contain **large time gaps** (e.g. a few observations in 2010 and a few in 2024). Downloading continuous weather data for the entire span would be wasteful.
+
+`weatherjoin` detects such gaps and **splits requests into multiple time windows**:
+
+- Time series are sorted per location.
+- Large gaps (controlled by `split_penalty_hours`) trigger a split.
+- Each segment is fetched separately.
+
+This dramatically reduces:
+- download size,
+- storage footprint,
+- unnecessary API usage.
+
+You can control this behavior via:
+
+```r
+split_penalty_hours = 720   # default
+pad_hours = 0             # optional padding around each segment
+max_parts = 50             # safety limit
+```
+
+## Local caching: what is stored, where, and why
+
+### What is cached?
+
+Downloaded weather data are stored as **self-contained segments**, each defined by:
+- location (latitude, longitude),
+- elevation,
+- time range,
+- temporal resolution (daily/hourly),
+- parameter set.
+
+Segments are reused whenever they **cover** a new request.
+
+### Cache matching strategy
+
+By default (`param_match = "superset"`):
+- cached files containing *more* parameters than requested are reused.
+
+This avoids redundant downloads when users gradually add variables.
+
+### Cache locations
+
+Caching is automatic and transparent. Two storage scopes are supported:
+
+#### User-level cache (default)
+
+```r
+cache_scope = "user"
+```
+
+Data are stored in a platform-specific user cache directory.
+This cache persists across projects and sessions.
+
+#### Project-level cache
+
+```r
+cache_scope = "project"
+```
+
+Data are stored in a `.weatherjoin/` directory inside the current project.
+This is useful for reproducible analyses and shared projects.
+
+You can also provide an explicit directory via `cache_dir`.
+
+### Cache maintenance
+
+- Cached entries are timestamped.
+- Entries older than `cache_max_age_days` are considered stale.
+- The `refresh` argument controls refetching behavior:
+  - `"if_missing"` (default),
+  - `"if_stale"`,
+  - `"always"`.
+
+Cache utilities are provided:
+
+```r
+wj_cache_list()
+wj_cache_clear()
+```
+
+## Joining weather data back to events
+
+Weather values are joined to events using:
+
+- exact matching (for daily data),
+- exact or rolling joins (for hourly data).
+
+Rolling joins are controlled by:
+
+```r
+roll = "nearest"       # default
+roll_max_hours = 1     # optional safety limit
+```
+
+This ensures that weather values are not attached from implausibly distant timestamps.
+
+## Handling missing inputs
+
+Rows with missing latitude, longitude, or time are **retained** in the output:
+
+- weather variables are set to `NA`,
+- other rows are processed normally.
+
+This design avoids accidental row loss and keeps joins explicit.
+
+## Summary
+
+`weatherjoin` aims to make weather data attachment:
+
+- **predictable** (explicit rules),
+- **efficient** (smart planning and caching),
+- **safe** (validated inputs and controlled joins),
+- **reproducible** (local cache and deterministic behavior).
+
+Most users only need a single function call, but advanced options are available when needed — without surprises.
+
+# Advanced: cache policy
+
+Most users can ignore cache policy settings. For advanced control, weatherjoin reads:
+
+options(weatherjoin.cache_max_age_days = 30)
+options(weatherjoin.cache_refresh = "if_missing")   # or "if_stale", "always"
+options(weatherjoin.cache_match_mode = "cover")     # or "exact"
+options(weatherjoin.cache_param_match = "superset") # or "exact"
+
+
+# Advanced: tuning time splitting
+
+By default, weatherjoin splits sparse time series into multiple request windows to avoid
+downloading long spans of unused data. Advanced users can tune this behaviour via options:
+
+options(weatherjoin.split_penalty_hours = 72)  # larger = fewer, wider calls
+options(weatherjoin.pad_hours = 0)             # padding added around each planned window
+
+Use withr::local_options() for temporary changes inside scripts or reports.

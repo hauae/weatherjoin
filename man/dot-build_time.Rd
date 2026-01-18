@@ -2,11 +2,23 @@
 % Please edit documentation in R/time_helpers.R
 \name{.build_time}
 \alias{.build_time}
-\title{Build timestamp_raw from a single time column or multiple time-part columns}
+\title{Build standard time keys used by weatherjoin}
 \usage{
-.build_time(x, time, tz = "UTC")
+.build_time(DT, time, tz = "UTC", time_api_resolved = c("daily", "hourly"))
+}
+\arguments{
+\item{DT}{data.table with input data.}
+
+\item{time}{User \verb{time=} specification (single column or multiple columns).}
+
+\item{tz}{Timezone used for parsing/constructing timestamps (default UTC).}
+
+\item{time_api_resolved}{"daily" or "hourly" (already resolved from user setting/guess).}
+}
+\value{
+DT with \code{timestamp_utc} (POSIXct) and \code{t_utc} (numeric seconds) columns added.
 }
 \description{
-Build timestamp_raw from a single time column or multiple time-part columns
+Build standard time keys used by weatherjoin
 }
 \keyword{internal}

@@ -8,31 +8,18 @@ join_weather(
   x,
   params,
   time,
-  provider = c("power"),
-  time_api = c("guess", "hourly", "daily"),
   lat_col = "lat",
   lon_col = "lon",
+  time_api = c("guess", "hourly", "daily"),
   tz = "UTC",
-  dummy_hour = 12L,
   roll = c("nearest", "last", "none"),
   roll_max_hours = NULL,
   spatial_mode = c("exact", "by_group", "cluster"),
   group_col = NULL,
-  rep_method = c("median", "centroid"),
   cluster_radius_m = NULL,
-  keep_rep_cols = FALSE,
-  split_penalty_hours = 72,
-  pad_hours = 0,
-  max_parts = 50L,
-  cache_dir = NULL,
   cache_scope = c("user", "project"),
-  pkg = "weatherjoin",
-  cache_max_age_days = 30,
-  refresh = c("if_missing", "if_stale", "always"),
-  match_mode = c("cover", "exact"),
-  param_match = c("superset", "exact"),
+  cache_dir = NULL,
   community = "ag",
-  time_standard = "UTC",
   site_elevation = c("auto", "constant"),
   elev_constant = 100,
   elev_fun = NULL,
@@ -46,76 +33,65 @@ join_weather(
 \item{params}{Character vector of NASA POWER parameter codes (e.g. \code{"T2M"}).}
 
 \item{time}{A single column name containing time (POSIXct/Date/character/numeric) OR
-a character vector of column names used to assemble a timestamp (e.g. \code{c("YEAR","MO","DY","HR")}).}
-
-\item{provider}{Weather data provider. Currently only \code{"power"} is implemented.}
-
-\item{time_api}{One of \code{"guess"}, \code{"hourly"}, \code{"daily"}. If \code{"daily"} is chosen
-while input is hourly, timestamps are downsampled to dates; if \code{"hourly"} is chosen while input
-has no time-of-day, an error is raised.}
+a character vector of column names used to assemble a timestamp
+(e.g. \code{c("YEAR","MO","DY","HR")}).}
 
 \item{lat_col, lon_col}{Column names for latitude and longitude.}
 
-\item{tz}{Time zone used to interpret/construct timestamps (default \code{"UTC"}).}
+\item{time_api}{One of \code{"guess"}, \code{"hourly"}, \code{"daily"}.
+If \code{"daily"} is chosen while input is hourly, timestamps are downsampled to dates.
+If \code{"hourly"} is chosen while input has no time-of-day, an error is raised.}
 
-\item{dummy_hour}{Hour used for daily timestamps (default 12). Only used when \code{time_api="daily"}.}
+\item{tz}{Time zone used to interpret/construct input timestamps (default \code{"UTC"}).
+Input times are standardised internally to UTC.}
 
-\item{roll}{Join behavior when matching hourly timestamps: \code{"nearest"}, \code{"last"}, or \code{"none"} (exact).}
+\item{roll}{Join behavior when matching hourly timestamps: \code{"nearest"} (default),
+\code{"last"}, or \code{"none"} (exact).}
 
-\item{roll_max_hours}{Optional maximum allowed distance (in hours) for a rolling match; farther matches become NA.}
+\item{roll_max_hours}{Optional maximum allowed distance (in hours) for a rolling match;
+farther matches become NA.}
 
 \item{spatial_mode}{How to reduce many points to representative locations before calling the provider:
 \code{"exact"}, \code{"by_group"}, or \code{"cluster"}.}
 
 \item{group_col}{Grouping column used when \code{spatial_mode="by_group"}.}
 
-\item{rep_method}{Representative location method: \code{"median"} or \code{"centroid"}.}
-
 \item{cluster_radius_m}{Clustering radius in meters when \code{spatial_mode="cluster"}.}
-
-\item{keep_rep_cols}{If TRUE, keep representative-location diagnostics (rep_lon/rep_lat, distance, elevation).}
-
-\item{split_penalty_hours}{Gap threshold (hours) to split sparse time series into separate API calls.}
-
-\item{pad_hours}{Extra hours padded on both sides of each planned call window.}
-
-\item{max_parts}{Maximum number of time-window parts per location (safety cap).}
-
-\item{cache_dir}{Optional explicit cache directory. If NULL, determined by \code{cache_scope}.}
 
 \item{cache_scope}{Where to store cache by default: \code{"user"} or \code{"project"}.}
 
-\item{pkg}{Package name used when \code{cache_scope="user"}.}
+\item{cache_dir}{Optional explicit cache directory. If NULL, determined by \code{cache_scope}.}
 
-\item{cache_max_age_days}{Cache entries older than this (days) are considered stale.}
-
-\item{refresh}{When to refetch: \code{"if_missing"}, \code{"if_stale"}, or \code{"always"}.}
-
-\item{match_mode}{Cache matching mode: \code{"cover"} (cached window covers requested) or \code{"exact"}.}
-
-\item{param_match}{Parameter matching for cache reuse: \code{"superset"} (default) allows cached files with extra params.}
-
-\item{community}{Passed to \code{nasapower::get_power()}.}
-
-\item{time_standard}{Passed to \code{nasapower::get_power()} (default \code{"UTC"}).}
+\item{community}{Passed to \code{nasapower::get_power()} (e.g. \code{"ag"}).}
 
 \item{site_elevation}{Elevation strategy: \code{"auto"} or \code{"constant"} (or a numeric scalar/vector).}
 
 \item{elev_constant}{Constant elevation (meters) when \code{site_elevation="constant"} or default for \code{"auto"}.}
 
-\item{elev_fun}{Optional function \code{function(lon, lat, ...)} returning elevation (meters) for representative points.}
+\item{elev_fun}{Optional function \code{function(lon, lat, ...)} returning elevation (meters)
+for representative points.}
 
 \item{verbose}{If TRUE, print progress messages.}
 
 \item{...}{Passed through to \code{nasapower::get_power()}.}
 }
 \value{
-A data.table with weather columns appended.
+A data.table with requested weather columns appended.
 }
 \description{
 Attach gridded weather variables to rows of an event table using spatial planning,
-optional time-range splitting, local caching, and exact/rolling joins.
+local caching, and exact/rolling joins.
 }
 \details{
-Currently supports NASA POWER via the \pkg{nasapower} package.
+The current provider is NASA POWER, accessed via the \pkg{nasapower} package.
+The package requests POWER data in UTC and performs all internal planning and matching in UTC.
+
+Advanced behaviour is controlled via package options; see \code{\link{weatherjoin_options}}.
+In particular:
+\itemize{
+\item Cache policy (staleness and reuse rules).
+\item Time-window planning and splitting for sparse time series.
+\item Daily \dQuote{dummy hour} used when constructing timestamps for daily data.
+\item Optional diagnostic columns in outputs.
+}
 }

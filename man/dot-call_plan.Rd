@@ -10,9 +10,6 @@
   loc_id_col = "loc_id",
   rep_lat_col = "rep_lat",
   rep_lon_col = "rep_lon",
-  split_penalty_hours = 72,
-  pad_hours = 0,
-  max_parts = 50L,
   tz = "UTC"
 )
 }

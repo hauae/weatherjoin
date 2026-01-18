@@ -4,12 +4,7 @@
 \alias{.split_time_ranges}
 \title{Split sparse time points into segments using a gap penalty (hours)}
 \usage{
-.split_time_ranges(
-  times_utc,
-  split_penalty_hours = 72,
-  pad_hours = 0,
-  max_parts = 50L
-)
+.split_time_ranges(times_utc)
 }
 \description{
 Split sparse time points into segments using a gap penalty (hours)

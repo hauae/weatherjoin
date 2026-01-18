@@ -65,7 +65,7 @@
 
 #' @keywords internal
 .load_cached_segments <- function(chk_to_load) {
-  if (nrow(chk_to_load) == 0L) return(NULL)
+  if (is.null(chk_to_load) || nrow(chk_to_load) == 0L) return(NULL)
   paths <- chk_to_load$cache_path
   out <- list()
   for (p in paths) {

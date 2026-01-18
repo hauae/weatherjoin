@@ -21,7 +21,6 @@
   idx_path <- file.path(cache_dir, "index.rds")
   if (!file.exists(idx_path)) {
     idx <- data.table::data.table(
-      key = character(),
       time_api = character(),
       params = character(),
       rep_lat = numeric(),
@@ -37,6 +36,122 @@
     saveRDS(idx, idx_path)
   }
   invisible(cache_dir)
+}
+
+#' Check cache coverage for planned calls
+#'
+#' Internal helper. Determines which planned provider calls are satisfied
+#' by existing cache entries and which must be fetched.
+#'
+#' @keywords internal
+.cache_check <- function(
+    calls,
+    time_api,
+    params,
+    site_elevation_col = "site_elevation",
+    settings,
+    cache_dir,
+    cache_scope = c("user", "project"),
+    pkg = "weatherjoin",
+    cache_max_age_days = 30,
+    refresh = c("if_missing", "if_stale", "always"),
+    match_mode = c("cover", "exact"),
+    param_match = c("superset", "exact")
+) {
+  cache_scope <- match.arg(cache_scope)
+  refresh <- match.arg(refresh)
+  match_mode <- match.arg(match_mode)
+  param_match <- match.arg(param_match)
+  
+  calls <- data.table::as.data.table(calls)
+  calls[, call_id := .I]
+  
+  cache_dir <- .cache_dir(cache_dir, cache_scope, pkg)
+  .cache_init(cache_dir, cache_scope, pkg)
+  
+  idx <- .cache_read_index(cache_dir)
+  data.table::setDT(idx)
+  
+  # default empty outputs
+  empty_to_load <- calls[0]
+  empty_to_load[, cache_path := character()]
+  
+  if (nrow(idx) == 0L || refresh == "always") {
+    return(list(
+      hits = calls[0],
+      to_fetch = calls,
+      to_load = empty_to_load,
+      index = idx
+    ))
+  }
+  
+  now <- Sys.time()
+  idx[, age_days := as.numeric(difftime(now, created_utc, units = "days"))]
+  idx[, is_stale := age_days > cache_max_age_days]
+  
+  # normalize params request for matching
+  req <- sort(unique(toupper(trimws(params))))
+  req <- req[nzchar(req)]
+  req_key <- paste(req, collapse = "|")
+  
+  chosen_key <- rep(NA_character_, nrow(calls))
+  
+  for (i in seq_len(nrow(calls))) {
+    row <- calls[i]
+    
+    time_api_req <- time_api  # avoid name clash with idx$time_api
+    
+    cand <- idx[get("time_api") == time_api_req &
+        abs(rep_lat - row$rep_lat) < 1e-8 &
+        abs(rep_lon - row$rep_lon) < 1e-8
+    ]
+    
+    if (site_elevation_col %in% names(row) && "site_elevation" %in% names(cand)) {
+      cand <- cand[site_elevation == row[[site_elevation_col]]]
+    }
+    
+    # param matching
+    if (param_match == "exact") {
+      cand <- cand[params == req_key]
+    } else {
+      cand <- cand[vapply(strsplit(params, "\\|"), function(p) all(req %in% p), logical(1L))]
+    }
+    
+    # time window matching
+    if (match_mode == "exact") {
+      cand <- cand[start_utc == row$start_utc & end_utc == row$end_utc]
+    } else {
+      cand <- cand[start_utc <= row$start_utc & end_utc >= row$end_utc]
+    }
+    
+    if (nrow(cand) > 0L) {
+      # drop stale if requested
+      if (refresh == "if_stale") cand <- cand[!is_stale]
+      if (nrow(cand) > 0L) {
+        # pick newest (largest created_utc)
+        cand <- cand[order(created_utc, decreasing = TRUE)]
+        chosen_key[i] <- cand$key[1]
+      }
+    }
+  }
+  
+  hits <- !is.na(chosen_key)
+  
+  to_load <- calls[hits]
+  if (nrow(to_load) > 0L) {
+    to_load[, cache_key := chosen_key[hits]]
+    to_load <- idx[to_load, on = .(key = cache_key), nomatch = 0L]
+    to_load[, cache_path := file.path(cache_dir, file)]
+  } else {
+    to_load <- empty_to_load
+  }
+  
+  list(
+    hits = calls[hits],
+    to_fetch = calls[!hits],
+    to_load = to_load,
+    index = idx
+  )
 }
 
 #' @keywords internal
@@ -127,8 +242,21 @@
 wj_cache_list <- function(cache_dir = NULL, cache_scope = c("user","project"), pkg = "weatherjoin") {
   cache_scope <- match.arg(cache_scope)
   cache_dir <- .cache_dir(cache_dir, cache_scope, pkg)
-  if (!file.exists(file.path(cache_dir, "index.rds"))) return(data.table::data.table())
+  idx_path <- file.path(cache_dir, "index.rds")
+  
+  # No index => empty cache
+  if (!file.exists(idx_path)) {
+    if (interactive()) {
+      message("weatherjoin cache is empty. (No index found.) Cache dir: ", cache_dir)
+    }
+    return(data.table::data.table())
+  }
+  
   idx <- .cache_read_index(cache_dir)
+  if (nrow(idx) == 0L && interactive()) {
+    message("weatherjoin cache is empty. Cache dir: ", cache_dir)
+  }
+  
   data.table::setorder(idx, time_api, params, rep_lat, rep_lon, site_elevation, start_utc)
   idx[]
 }

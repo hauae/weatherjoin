@@ -1,6 +1,12 @@
 #' Split sparse time points into segments using a gap penalty (hours)
 #' @keywords internal
-.split_time_ranges <- function(times_utc, split_penalty_hours = 72, pad_hours = 0, max_parts = 50L) {
+.split_time_ranges <- function(times_utc) {
+  if (!inherits(times_utc, "POSIXct")) stop("times_utc must be POSIXct.")
+  
+  split_penalty_hours <- .wj_opt("split_penalty_hours", 72)
+  pad_hours <- .wj_opt("pad_hours", 0)
+  max_parts <- as.integer(.wj_opt("max_parts", 50))
+  
   if (!inherits(times_utc, "POSIXct")) stop("times_utc must be POSIXct.")
   t <- sort(unique(times_utc[!is.na(times_utc)]))
   if (length(t) == 0) {
