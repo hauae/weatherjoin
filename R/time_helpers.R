@@ -1,4 +1,4 @@
-#' SIngle-column time input path
+#' Single-column time input path
 #' Validate and normalize a time column
 #' @keywords internal
 .validate_single_time <- function(raw, tz = "UTC", dummy_hour = 12L,
