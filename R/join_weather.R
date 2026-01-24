@@ -1,51 +1,55 @@
 #' Join gridded weather data to an event table
 #'
-#' Attach gridded weather variables to rows of an event table using spatial planning,
-#' local caching, and exact/rolling joins.
-#'
-#' The current provider is NASA POWER, accessed via the \pkg{nasapower} package.
-#' The package requests POWER data in UTC and performs all internal planning and matching in UTC.
+#' Attach gridded weather variables from NASA POWER to rows of an event table.
+#' The function:
+#' \itemize{
+#' \item standardizes/validates time input (single timestamp column or multiple time columns),
+#' \item plans efficient provider calls by clustering locations (default) and splitting sparse time ranges,
+#' \item caches downloaded weather segments locally and reuses them,
+#' \item joins weather back to events using exact or rolling joins.
+#' }
 #'
 #' @param x A data.frame/data.table with event rows.
 #' @param params Character vector of NASA POWER parameter codes (e.g. \code{"T2M"}).
 #' @param time A single column name containing time (POSIXct/Date/character/numeric) OR
-#'   a character vector of column names used to assemble a timestamp
-#'   (e.g. \code{c("YEAR","MO","DY","HR")}).
-#' @param lat_col,lon_col Column names for latitude and longitude.
-#' @param time_api One of \code{"guess"}, \code{"hourly"}, \code{"daily"}.
-#'   If \code{"daily"} is chosen while input is hourly, timestamps are downsampled to dates.
-#'   If \code{"hourly"} is chosen while input has no time-of-day, an error is raised.
-#' @param tz Time zone used to interpret/construct input timestamps (default \code{"UTC"}).
-#'   Input times are standardised internally to UTC.
-#' @param roll Join behavior when matching hourly timestamps: \code{"nearest"} (default),
-#'   \code{"last"}, or \code{"none"} (exact).
-#' @param roll_max_hours Optional maximum allowed distance (in hours) for a rolling match;
-#'   farther matches become NA.
-#' @param spatial_mode How to reduce many points to representative locations before calling the provider:
-#'   \code{"exact"}, \code{"by_group"}, or \code{"cluster"}.
+#'   a character vector of column names used to assemble a timestamp (e.g. \code{c("YEAR","MO","DY","HR")}).
+#'
+#' @param lat_col,lon_col Column names for latitude and longitude (decimal degrees).
+#'
+#' @param time_api One of \code{"guess"}, \code{"hourly"}, \code{"daily"}. If \code{"daily"} is chosen
+#'   while the input contains time-of-day information, timestamps are downsampled to dates (with a fixed hour).
+#'   If \code{"hourly"} is chosen but the input has no time-of-day information, an error is raised.
+#' @param tz Time zone used to interpret/construct input timestamps (default \code{"UTC"}). Weather is requested
+#'   from NASA POWER in UTC.
+#'
+#' @param roll Join behaviour when matching timestamps: \code{"nearest"} (default, recommended), \code{"last"}, or \code{"none"} (exact).
+#'   Rolling is applied when joining hourly weather to event times.
+#' @param roll_max_hours Maximum allowed time distance (hours) for a rolling match. If NULL, a safe default is used:
+#'   1 hour for hourly joins and 24 hours for daily joins.
+#'
+#' @param spatial_mode How to reduce many points to representative locations before calling POWER:
+#'   \code{"cluster"} (default), \code{"exact"}, or \code{"by_group"}.
+#'   Clustering reduces accidental explosion of provider calls and matches POWER's coarse spatial resolution.
 #' @param group_col Grouping column used when \code{spatial_mode="by_group"}.
-#' @param cluster_radius_m Clustering radius in meters when \code{spatial_mode="cluster"}.
+#' @param cluster_radius_m Clustering radius in meters when \code{spatial_mode="cluster"}. 
+#'
+#' @param site_elevation Elevation strategy for POWER calls: \code{"constant"} or \code{"auto"}.
+#'   Elevation is resolved for representative locations and becomes part of the cache identity.
+#' @param elev_constant Constant elevation (meters) used when \code{site_elevation="constant"} and as a fallback for \code{"auto"}.
+#' @param elev_fun Optional function \code{function(lon, lat, ...)} returning elevation (meters) for representative points.
+#'
+#' @param community Passed to \code{nasapower::get_power()} (e.g. \code{"ag"}).
+#'
 #' @param cache_scope Where to store cache by default: \code{"user"} or \code{"project"}.
 #' @param cache_dir Optional explicit cache directory. If NULL, determined by \code{cache_scope}.
-#' @param community Passed to \code{nasapower::get_power()} (e.g. \code{"ag"}).
-#' @param site_elevation Elevation strategy: \code{"auto"} or \code{"constant"} (or a numeric scalar/vector).
-#' @param elev_constant Constant elevation (meters) when \code{site_elevation="constant"} or default for \code{"auto"}.
-#' @param elev_fun Optional function \code{function(lon, lat, ...)} returning elevation (meters)
-#'   for representative points.
+#'
 #' @param verbose If TRUE, print progress messages.
 #' @param ... Passed through to \code{nasapower::get_power()}.
 #'
-#' @details
-#' Advanced behaviour is controlled via package options; see \code{\link{weatherjoin_options}}.
-#' In particular:
-#' \itemize{
-#' \item Cache policy (staleness and reuse rules).
-#' \item Time-window planning and splitting for sparse time series.
-#' \item Daily \dQuote{dummy hour} used when constructing timestamps for daily data.
-#' \item Optional diagnostic columns in outputs.
-#' }
+#' @return A data.table with weather columns appended. Rows with missing/invalid inputs keep their original values
+#'   and receive NA weather.
 #'
-#' @return A data.table with requested weather columns appended.
+#' @seealso \code{\link{wj_cache_list}}, \code{\link{wj_cache_clear}}, \code{\link{weatherjoin_options}}
 #' @export
 join_weather <- function(
     x,
@@ -65,44 +69,45 @@ join_weather <- function(
     roll_max_hours = NULL,
     
     # Spatial planning
-    spatial_mode = c("exact", "by_group", "cluster"),
+    spatial_mode = c("cluster", "exact", "by_group"),
     group_col = NULL,
-    cluster_radius_m = NULL,
+    cluster_radius_m = 250,
     
-    # Cache location (policy is via options)
-    cache_scope = c("user", "project"),
-    cache_dir = NULL,
+    # Elevation
+    site_elevation = c("constant", "auto"),
+    elev_constant = 100,
+    elev_fun = NULL,
     
     # POWER-specific
     community = "ag",
     
-    # Elevation (kept exposed)
-    site_elevation = c("auto", "constant"),
-    elev_constant = 100,
-    elev_fun = NULL,
+    # Cache location
+    cache_scope = c("user", "project"),
+    cache_dir = NULL,
     
     verbose = FALSE,
     ...
 ) {
+
   .wj_load(attach = FALSE)
   
-  # --- match.arg() for user-facing enums ---
+  # ---- Args ----
   time_api     <- match.arg(time_api)
   roll         <- match.arg(roll)
   spatial_mode <- match.arg(spatial_mode)
   cache_scope  <- match.arg(cache_scope)
   site_elevation <- match.arg(site_elevation)
   
-  # --- hardcoded provider decisions ---
+  # hardcoded provider decisions
   provider <- "power"
   time_standard <- "UTC"
   rep_method <- "centroid"
   
-  # --- pull internal knobs from options ---
+  # pull internal knobs from options
   dummy_hour   <- as.integer(.wj_opt("dummy_hour", 12))
   keep_rep_cols <- isTRUE(.wj_opt("keep_rep_cols", FALSE))
   
-  # cache policy knobs (as in your options_doc)
+  # cache policy knobs
   pkg <- .wj_opt("cache_pkg", "weatherjoin")
   cache_max_age_days <- .wj_opt("cache_max_age_days", 30)
   
@@ -113,6 +118,67 @@ join_weather <- function(
   param_match <- match.arg(.wj_opt("cache_param_match", "superset"),
                            c("superset", "exact"))
   
+  # ---- Sanity check ----
+  # Cluster_radius_m vs spatial_mode
+  if (spatial_mode == "cluster") {
+    
+    # Errors
+    if (is.null(cluster_radius_m) || !is.numeric(cluster_radius_m) || length(cluster_radius_m) != 1L) {
+      stop(
+        "When spatial_mode='cluster', cluster_radius_m must be a single numeric value (meters).",
+        call. = FALSE
+      )
+    }
+    
+    if (!is.finite(cluster_radius_m) || cluster_radius_m <= 0) {
+      stop(
+        "cluster_radius_m must be a positive, finite number (meters).",
+        call. = FALSE
+      )
+    }
+    
+    # Guardrails
+    if (cluster_radius_m < 1) {
+      warning(
+        sprintf(
+          "cluster_radius_m = %g m is extremely small and may behave like spatial_mode='exact'.",
+          cluster_radius_m
+        ),
+        call. = FALSE
+      )
+    }
+    
+    if (cluster_radius_m > 50000) {
+      warning(
+        sprintf(
+          "cluster_radius_m = %g m is very large (>50 km). ",
+          cluster_radius_m
+        ),
+        "This may collapse distant locations and produce misleading results.\n",
+        "Did you intend to supply meters?",
+        call. = FALSE
+      )
+    }
+    
+  } else {
+    if (!is.null(cluster_radius_m)) {
+      warning(
+        "cluster_radius_m is ignored unless spatial_mode='cluster'.",
+        call. = FALSE
+      )
+    }
+  }
+  
+  # ---- Site_elevation = "auto" but no elev_fun ----
+  if (identical(site_elevation, "auto") && is.null(elev_fun)) {
+    warning(
+      "site_elevation='auto' selected but elev_fun is NULL; using elev_constant fallback. ",
+      "Provide elev_fun to compute elevation from coordinates.",
+      call. = FALSE
+    )
+  }
+  
+  # ---- Run ----------------------------
   DT <- data.table::as.data.table(x)
   DT[, .row_id := .I]
 
@@ -142,8 +208,8 @@ join_weather <- function(
     return(out_bad[])
   }
 
-  # ---- Infer input time resolution capability (schema/type-based, not content-based) ----
-  # input_res means: does the input contain time-of-day info?
+  # ---- Infer input time resolution capability ----
+  # does the input contain time-of-day info?
   if (length(time) == 1L) {
     raw <- DT_ok[[time[[1L]]]]
     if (inherits(raw, "Date")) {
@@ -163,7 +229,7 @@ join_weather <- function(
   }
   
   # ---- Resolve/enforce requested API ----
-  # Rules (as agreed):
+  # Rules:
   # - guess -> input_res
   # - user can force daily even if hourly-capable (OK)
   # - user cannot force hourly if no hour info (error)
@@ -181,6 +247,11 @@ join_weather <- function(
     time_api_resolved <- "hourly"
   }
   
+  roll_max_eff <- roll_max_hours
+  if (is.null(roll_max_eff)) {
+    roll_max_eff <- if (time_api_resolved == "hourly") 1 else 24
+  }
+  
   # ---- Build validated timestamp_utc and numeric join key t_utc ----
   # This enforces time_api_resolved (e.g., Date + hourly => clear error)
   DT_ok <- .build_time(
@@ -190,7 +261,7 @@ join_weather <- function(
     time_api_resolved = time_api_resolved
   )
   
-  # If user forced daily, downsample timestamps to date + dummy_hour (safe & explicit)
+  # If user forced daily, downsample timestamps to date + dummy_hour
   if (time_api_resolved == "daily") {
     DT_ok[, timestamp_utc := as.POSIXct(as.Date(timestamp_utc, tz = "UTC"), tz = "UTC") +
             as.integer(dummy_hour) * 3600]
@@ -280,7 +351,7 @@ join_weather <- function(
     fetched = fetched,
     params = params,
     roll = roll,
-    roll_max_hours = roll_max_hours
+    roll_max_hours = roll_max_eff # implements a separate default for hourly and daily
   )
 
   if (!keep_rep_cols) {

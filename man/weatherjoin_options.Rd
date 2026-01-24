@@ -11,7 +11,7 @@ controlled via \code{options()}.
 \subsection{Cache policy}{
 
 \itemize{
-\item \code{weatherjoin.cache_max_age_days} Cache entries older than this (days) are considered stale (default \code{30}).
+\item \code{weatherjoin.cache_max_age_days} Cache entries older than this (days) are considered stale (default \code{60}).
 \item \code{weatherjoin.cache_refresh} When to refetch: one of \code{"if_missing"}, \code{"if_stale"}, \code{"always"} (default \code{"if_missing"}).
 \item \code{weatherjoin.cache_match_mode} Cache matching mode: \code{"cover"} (cached window covers requested) or \code{"exact"} (default \code{"cover"}).
 \item \code{weatherjoin.cache_param_match} Parameter matching for cache reuse: \code{"superset"} or \code{"exact"} (default \code{"superset"}).

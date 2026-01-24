@@ -6,13 +6,15 @@
 \usage{
 .spatial_plan(
   x,
-  spatial_mode = c("exact", "by_group", "cluster"),
+  spatial_mode = c("cluster", "exact", "by_group"),
   lat_col = "lat",
   lon_col = "lon",
   group_col = NULL,
   rep_method = c("median", "centroid"),
-  cluster_radius_m = NULL,
-  keep_diag = TRUE
+  cluster_radius_m = 250,
+  keep_diag = TRUE,
+  check_range = TRUE,
+  coord_digits = 5L
 )
 }
 \description{

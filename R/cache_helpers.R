@@ -1,4 +1,4 @@
-# Cache helpers ---------------------------------------------------------------
+# Cache helpers -----
 
 #' @keywords internal
 .cache_dir <- function(cache_dir = NULL, cache_scope = c("user","project"), pkg = "weatherjoin") {

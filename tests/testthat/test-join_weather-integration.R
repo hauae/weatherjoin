@@ -13,7 +13,9 @@ testthat::test_that("join_weather integrates: plans, fetches (mocked), caches, j
     weatherjoin.cache_refresh = "always",
     weatherjoin.cache_match_mode = "cover",
     weatherjoin.cache_param_match = "superset",
-    weatherjoin.cache_max_age_days = 30
+    weatherjoin.cache_max_age_days = 30,
+    # rds cache format to avoid fst version warning
+    weatherjoin.cache_format = "rds"
   ))
   
   # Minimal event table (2 times around the same hour)
@@ -72,7 +74,9 @@ testthat::test_that("join_weather integrates: plans, fetches (mocked), caches, j
     roll_max_hours = 1,
     cache_scope = "project",
     cache_dir = tmp,
-    community = "ag"
+    community = "ag",
+    site_elevation = "constant",
+    elev_constant = 100
   )
   
   testthat::expect_true(all(c("T2M", "PRECTOTCORR") %in% names(out)))

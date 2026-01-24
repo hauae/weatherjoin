@@ -1,8 +1,6 @@
 ## Test environments
 
 - Windows 11, R 4.5.1
-- GitHub Actions (Windows-latest, Ubuntu-latest, macOS-latest) [optional]
-- win-builder (R-devel) [if used]
 
 ## R CMD check results
 
@@ -10,10 +8,8 @@
 
 ## Comments
 
-This is a new package submission.
+New package submission.
 
-The package provides high-level tools for attaching gridded weather data from the
-NASA POWER project to event-based datasets. Weather data are retrieved via the
-existing 'nasapower' R package.
+The package provides tools for attaching gridded weather variables from the NASA POWER Project to event-based datasets. Data are retrieved via the 'nasapower' package and cached locally for efficient repeated use.
 
 The package is not affiliated with or endorsed by NASA.

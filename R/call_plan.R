@@ -18,7 +18,7 @@
   attr(DT$t, "tzone") <- tz
   
   out <- DT[, {
-    .split_time_ranges(times_utc = t)  # <-- no args; reads options internally
+    .split_time_ranges(times_utc = t)  # no args; reads options internally
   }, by = .(
     loc_id = get(loc_id_col),
     rep_lat = get(rep_lat_col),

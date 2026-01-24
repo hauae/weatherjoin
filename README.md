@@ -19,7 +19,7 @@ This package is not affiliated with or endorsed by NASA.
 - Automatic planning of efficient spatio-temporal API calls
 - Local caching of downloaded weather segments for reuse
 - Exact or rolling joins for hourly data
-- Flexible handling of multiple locations (exact points, grouped sites, or spatial clustering)
+- Flexible handling of multiple locations (spatial clustering, grouped sites, or exact points)
 
 ## Installation
 

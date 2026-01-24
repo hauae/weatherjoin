@@ -14,15 +14,15 @@ join_weather(
   tz = "UTC",
   roll = c("nearest", "last", "none"),
   roll_max_hours = NULL,
-  spatial_mode = c("exact", "by_group", "cluster"),
+  spatial_mode = c("cluster", "exact", "by_group"),
   group_col = NULL,
-  cluster_radius_m = NULL,
-  cache_scope = c("user", "project"),
-  cache_dir = NULL,
-  community = "ag",
-  site_elevation = c("auto", "constant"),
+  cluster_radius_m = 250,
+  site_elevation = c("constant", "auto"),
   elev_constant = 100,
   elev_fun = NULL,
+  community = "ag",
+  cache_scope = c("user", "project"),
+  cache_dir = NULL,
   verbose = FALSE,
   ...
 )
@@ -33,65 +33,62 @@ join_weather(
 \item{params}{Character vector of NASA POWER parameter codes (e.g. \code{"T2M"}).}
 
 \item{time}{A single column name containing time (POSIXct/Date/character/numeric) OR
-a character vector of column names used to assemble a timestamp
-(e.g. \code{c("YEAR","MO","DY","HR")}).}
+a character vector of column names used to assemble a timestamp (e.g. \code{c("YEAR","MO","DY","HR")}).}
 
-\item{lat_col, lon_col}{Column names for latitude and longitude.}
+\item{lat_col, lon_col}{Column names for latitude and longitude (decimal degrees).}
 
-\item{time_api}{One of \code{"guess"}, \code{"hourly"}, \code{"daily"}.
-If \code{"daily"} is chosen while input is hourly, timestamps are downsampled to dates.
-If \code{"hourly"} is chosen while input has no time-of-day, an error is raised.}
+\item{time_api}{One of \code{"guess"}, \code{"hourly"}, \code{"daily"}. If \code{"daily"} is chosen
+while the input contains time-of-day information, timestamps are downsampled to dates (with a fixed hour).
+If \code{"hourly"} is chosen but the input has no time-of-day information, an error is raised.}
 
-\item{tz}{Time zone used to interpret/construct input timestamps (default \code{"UTC"}).
-Input times are standardised internally to UTC.}
+\item{tz}{Time zone used to interpret/construct input timestamps (default \code{"UTC"}). Weather is requested
+from NASA POWER in UTC.}
 
-\item{roll}{Join behavior when matching hourly timestamps: \code{"nearest"} (default),
-\code{"last"}, or \code{"none"} (exact).}
+\item{roll}{Join behaviour when matching timestamps: \code{"nearest"} (default, recommended), \code{"last"}, or \code{"none"} (exact).
+Rolling is applied when joining hourly weather to event times.}
 
-\item{roll_max_hours}{Optional maximum allowed distance (in hours) for a rolling match;
-farther matches become NA.}
+\item{roll_max_hours}{Maximum allowed time distance (hours) for a rolling match. If NULL, a safe default is used:
+1 hour for hourly joins and 24 hours for daily joins.}
 
-\item{spatial_mode}{How to reduce many points to representative locations before calling the provider:
-\code{"exact"}, \code{"by_group"}, or \code{"cluster"}.}
+\item{spatial_mode}{How to reduce many points to representative locations before calling POWER:
+\code{"cluster"} (default), \code{"exact"}, or \code{"by_group"}.
+Clustering reduces accidental explosion of provider calls and matches POWER's coarse spatial resolution.}
 
 \item{group_col}{Grouping column used when \code{spatial_mode="by_group"}.}
 
 \item{cluster_radius_m}{Clustering radius in meters when \code{spatial_mode="cluster"}.}
 
-\item{cache_scope}{Where to store cache by default: \code{"user"} or \code{"project"}.}
+\item{site_elevation}{Elevation strategy for POWER calls: \code{"constant"} or \code{"auto"}.
+Elevation is resolved for representative locations and becomes part of the cache identity.}
 
-\item{cache_dir}{Optional explicit cache directory. If NULL, determined by \code{cache_scope}.}
+\item{elev_constant}{Constant elevation (meters) used when \code{site_elevation="constant"} and as a fallback for \code{"auto"}.}
+
+\item{elev_fun}{Optional function \code{function(lon, lat, ...)} returning elevation (meters) for representative points.}
 
 \item{community}{Passed to \code{nasapower::get_power()} (e.g. \code{"ag"}).}
 
-\item{site_elevation}{Elevation strategy: \code{"auto"} or \code{"constant"} (or a numeric scalar/vector).}
+\item{cache_scope}{Where to store cache by default: \code{"user"} or \code{"project"}.}
 
-\item{elev_constant}{Constant elevation (meters) when \code{site_elevation="constant"} or default for \code{"auto"}.}
-
-\item{elev_fun}{Optional function \code{function(lon, lat, ...)} returning elevation (meters)
-for representative points.}
+\item{cache_dir}{Optional explicit cache directory. If NULL, determined by \code{cache_scope}.}
 
 \item{verbose}{If TRUE, print progress messages.}
 
 \item{...}{Passed through to \code{nasapower::get_power()}.}
 }
 \value{
-A data.table with requested weather columns appended.
+A data.table with weather columns appended. Rows with missing/invalid inputs keep their original values
+and receive NA weather.
 }
 \description{
-Attach gridded weather variables to rows of an event table using spatial planning,
-local caching, and exact/rolling joins.
-}
-\details{
-The current provider is NASA POWER, accessed via the \pkg{nasapower} package.
-The package requests POWER data in UTC and performs all internal planning and matching in UTC.
-
-Advanced behaviour is controlled via package options; see \code{\link{weatherjoin_options}}.
-In particular:
+Attach gridded weather variables from NASA POWER to rows of an event table.
+The function:
 \itemize{
-\item Cache policy (staleness and reuse rules).
-\item Time-window planning and splitting for sparse time series.
-\item Daily \dQuote{dummy hour} used when constructing timestamps for daily data.
-\item Optional diagnostic columns in outputs.
+\item standardizes/validates time input (single timestamp column or multiple time columns),
+\item plans efficient provider calls by clustering locations (default) and splitting sparse time ranges,
+\item caches downloaded weather segments locally and reuses them,
+\item joins weather back to events using exact or rolling joins.
 }
+}
+\seealso{
+\code{\link{wj_cache_list}}, \code{\link{wj_cache_clear}}, \code{\link{weatherjoin_options}}
 }

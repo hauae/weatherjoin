@@ -1,7 +1,7 @@
 Package: weatherjoin
 Type: Package
 Title: Join Gridded Weather Data to Event Tables
-Version: 0.0.1
+Version: 0.2.0
 Authors@R: c(
     person("Przemek", "Dolowy", email = "pdolowy@harper-adams.ac.uk", role = c("aut", "cre"), comment = c(affiliation = "Harper Adams University"))
   )
