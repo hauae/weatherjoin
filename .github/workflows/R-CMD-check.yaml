@@ -53,10 +53,21 @@ jobs:
             timeout = 600,
             pkgType = "source"
           )
-          install.packages("remotes")
-          remotes::install_deps(dependencies = TRUE, type = "source")
-          install.packages("rcmdcheck")
 
+          lib <- Sys.getenv("R_LIBS_USER")
+          if (!nzchar(lib)) stop("R_LIBS_USER is not set")
+          dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+    
+          install.packages(c("remotes", "rcmdcheck"), lib = lib)
+
+          # Install all deps into the same library that check-r-package will use
+          remotes::install_deps(dependencies = TRUE, type = "source", lib = lib)
+
+          # Sanity check: fail early if key deps missing
+          if (!requireNamespace("data.table", quietly = TRUE, lib.loc = lib)) {
+            stop("data.table still not installed in R_LIBS_USER: ", lib)
+            }
+    
       # ----------------------------
       # Dependencies (non-macOS): keep the standard r-lib/actions route
       # ----------------------------
