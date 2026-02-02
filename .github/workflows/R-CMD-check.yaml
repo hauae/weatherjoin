@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
-  workflow_dispatch: 
+  workflow_dispatch:
 
 name: R-CMD-check.yaml
 
@@ -22,9 +22,9 @@ jobs:
         config:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
-          - {os: ubuntu-latest,   r: 'release'}
-          - {os: ubuntu-latest,   r: 'oldrel-1'}
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+          - {os: ubuntu-latest,  r: 'release'}
+          - {os: ubuntu-latest,  r: 'oldrel-1'}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -39,7 +39,14 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
+          # Work around occasional macOS binary download issues by avoiding RSPM there.
+          use-public-rspm: ${{ runner.os != 'macOS' }}
+
+      - name: Set CRAN repo + timeout on macOS
+        if: runner.os == 'macOS'
+        shell: Rscript {0}
+        run: |
+          options(repos = c(CRAN = "https://cloud.r-project.org"), timeout = 600)
 
       - name: Work around macOS base64enc binary download flake
         if: runner.os == 'macOS'
@@ -48,7 +55,20 @@ jobs:
           options(repos = c(CRAN = "https://cloud.r-project.org"), timeout = 600)
           install.packages("base64enc", type = "source")
 
+      # Dependencies (non-macOS): default fast path
       - uses: r-lib/actions/setup-r-dependencies@v2
+        if: runner.os != 'macOS'
+        with:
+          cache-version: 2
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      # Dependencies (macOS): force source installs + isolate pak cache
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        if: runner.os == 'macOS'
+        env:
+          R_PKGTYPE: source
+          PAK_CACHE_DIR: ${{ runner.temp }}/pak-cache
         with:
           cache-version: 2
           extra-packages: any::rcmdcheck
