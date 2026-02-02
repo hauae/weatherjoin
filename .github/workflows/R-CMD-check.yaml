@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
-  workflow_dispatch:
+  workflow_dispatch: 
 
 name: R-CMD-check.yaml
 
@@ -22,9 +22,9 @@ jobs:
         config:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
-          - {os: ubuntu-latest,  r: 'release'}
-          - {os: ubuntu-latest,  r: 'oldrel-1'}
+          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
+          - {os: ubuntu-latest,   r: 'release'}
+          - {os: ubuntu-latest,   r: 'oldrel-1'}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -41,49 +41,13 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      # ----------------------------
-      # macOS: Install gettext for libintl.h
-      # ----------------------------
+      # Install gettext on macOS to provide libintl.h for data.table compilation
       - name: Install gettext on macOS
         if: runner.os == 'macOS'
-        run: |
-          brew install gettext
-          echo "$(brew --prefix gettext)/bin" >> $GITHUB_PATH
+        run: brew install gettext
 
-      # ----------------------------
-      # Dependencies (macOS): avoid pak lockfile install
-      # ----------------------------
-      - name: Install dependencies from source on macOS (avoid base64enc binary flake)
-        if: runner.os == 'macOS'
-        shell: Rscript {0}
-        run: |
-          options(
-            repos = c(CRAN = "https://cloud.r-project.org"),
-            timeout = 600,
-            pkgType = "source"
-          )
-
-          lib <- Sys.getenv("R_LIBS_USER")
-          if (!nzchar(lib)) stop("R_LIBS_USER is not set")
-          dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-    
-          install.packages(c("remotes", "rcmdcheck"), lib = lib)
-
-          # Install all deps into the same library that check-r-package will use
-          remotes::install_deps(dependencies = TRUE, type = "source", lib = lib)
-
-          # Sanity check: fail early if key deps missing
-          if (!requireNamespace("data.table", quietly = TRUE, lib.loc = lib)) {
-            stop("data.table still not installed in R_LIBS_USER: ", lib)
-            }
-    
-      # ----------------------------
-      # Dependencies (non-macOS): keep the standard r-lib/actions route
-      # ----------------------------
       - uses: r-lib/actions/setup-r-dependencies@v2
-        if: runner.os != 'macOS'
         with:
-          cache-version: 2
           extra-packages: any::rcmdcheck
           needs: check
 
