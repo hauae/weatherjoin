@@ -34,3 +34,9 @@
 
 #' @keywords internal
 .round_coord <- function(x, digits = 5) round(as.numeric(x), digits)
+
+# a helper to detect R-CMD check
+#' @keywords internal
+.on_r_cmd_check <- function() {
+  nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))
+}

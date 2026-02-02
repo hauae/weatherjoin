@@ -6,7 +6,7 @@
 \alias{weatherjoin-package}
 \title{weatherjoin: Join Gridded Weather Data to Event Tables}
 \description{
-High-level tools to attach gridded weather data from the NASA POWER project to event-based datasets. The package plans efficient spatio-temporal API calls, caches downloaded segments locally, and joins weather variables back to the input table using exact or rolling joins. NASA POWER data are retrieved via the 'nasapower' R package. This package is not affiliated with or endorsed by NASA.
+High-level tools to attach gridded weather data from the NASA POWER Project to event-based datasets. The package plans efficient spatio-temporal API calls via the 'nasapower' R package, caches downloaded segments locally, and joins weather variables back to the input table using exact or rolling joins. This package is not affiliated with or endorsed by NASA.
 }
 \seealso{
 Useful links:

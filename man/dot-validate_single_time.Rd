@@ -2,7 +2,7 @@
 % Please edit documentation in R/time_helpers.R
 \name{.validate_single_time}
 \alias{.validate_single_time}
-\title{SIngle-column time input path
+\title{Single-column time input path
 Validate and normalize a time column}
 \usage{
 .validate_single_time(
@@ -15,7 +15,7 @@ Validate and normalize a time column}
 )
 }
 \description{
-SIngle-column time input path
+Single-column time input path
 Validate and normalize a time column
 }
 \keyword{internal}

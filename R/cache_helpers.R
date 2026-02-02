@@ -1,16 +1,33 @@
 # Cache helpers -----
 
 #' @keywords internal
-.cache_dir <- function(cache_dir = NULL, cache_scope = c("user","project"), pkg = "weatherjoin") {
+.cache_dir <- function(cache_dir = NULL,
+                       cache_scope = c("user","project"),
+                       pkg = "weatherjoin") {
   cache_scope <- match.arg(cache_scope)
-  if (!is.null(cache_dir)) return(normalizePath(cache_dir, winslash = "/", mustWork = FALSE))
+  
+  ## Never write to user/project cache during R CMD check
+  if (.on_r_cmd_check()) {
+    return(normalizePath(file.path(tempdir(), paste0(pkg, "_cache")),
+                         winslash = "/", mustWork = FALSE))
+  } ##
+  
+  if (!is.null(cache_dir)) {
+    return(normalizePath(cache_dir, winslash = "/", mustWork = FALSE))
+  }
+  
   if (cache_scope == "project") {
-    return(normalizePath(file.path(getwd(), ".weatherjoin_cache"), winslash = "/", mustWork = FALSE))
+    return(normalizePath(file.path(getwd(), ".weatherjoin_cache"),
+                         winslash = "/", mustWork = FALSE))
   }
+  
   if (exists("R_user_dir", where = asNamespace("tools"), inherits = FALSE)) {
-    return(normalizePath(tools::R_user_dir(pkg, which = "cache"), winslash = "/", mustWork = FALSE))
+    return(normalizePath(tools::R_user_dir(pkg, which = "cache"),
+                         winslash = "/", mustWork = FALSE))
   }
-  normalizePath(file.path(path.expand("~"), ".cache", pkg), winslash="/", mustWork = FALSE)
+  
+  normalizePath(file.path(path.expand("~"), ".cache", pkg),
+                winslash = "/", mustWork = FALSE)
 }
 
 #' @keywords internal
@@ -19,6 +36,7 @@
   cache_dir <- .cache_dir(cache_dir, cache_scope, pkg)
   if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
   idx_path <- file.path(cache_dir, "index.rds")
+  
   if (!file.exists(idx_path)) {
     idx <- data.table::data.table(
       time_api = character(),
