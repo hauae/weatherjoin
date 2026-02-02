@@ -10,7 +10,7 @@
 
 ## Comments
 
-This is a patch update following the recent acceptance of version 0.2.0.
+Version 0.2.2 is a patch update following the recent acceptance of version 0.2.0.
 
 The previous CRAN checks reported a NOTE due to files being created in a user-level cache directory during R CMD check.
 This has been resolved by redirecting all package caching to a temporary directory when running under R CMD check, preventing creation of files outside the check directory.
