@@ -42,6 +42,15 @@ jobs:
           use-public-rspm: true
 
       # ----------------------------
+      # macOS: Install gettext for libintl.h
+      # ----------------------------
+      - name: Install gettext on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install gettext
+          echo "$(brew --prefix gettext)/bin" >> $GITHUB_PATH
+
+      # ----------------------------
       # Dependencies (macOS): avoid pak lockfile install
       # ----------------------------
       - name: Install dependencies from source on macOS (avoid base64enc binary flake)
