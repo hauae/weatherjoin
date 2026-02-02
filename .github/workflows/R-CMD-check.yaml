@@ -41,12 +41,12 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      - name: Force source packages on macOS
+      - name: Work around macOS base64enc binary download flake
         if: runner.os == 'macOS'
-        shell: bash
+        shell: Rscript {0}
         run: |
-          echo 'options(pkgType = "source")' >> ~/.Rprofile
-          echo 'options(timeout = 600)' >> ~/.Rprofile
+          options(repos = c(CRAN = "https://cloud.r-project.org"), timeout = 600)
+          install.packages("base64enc", type = "source")
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
