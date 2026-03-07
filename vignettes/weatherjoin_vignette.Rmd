@@ -218,7 +218,7 @@ Two scopes are supported:
 
 #### User-level cache (default): persists across projects and sessions.
 
-Project-level cache: stored in a `.weatherjoin/` directory inside the project. This is useful for reproducible analyses and shared projects.
+#### Project-level cache: stored in a `.weatherjoin/` directory inside the project. This is useful for reproducible analyses and shared projects.
 
 You can control this via:
 

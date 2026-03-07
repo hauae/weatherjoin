@@ -2,6 +2,9 @@
 .Rhistory
 .Rapp.history
 
+# Test and submission script
+Submission.R
+
 # Session Data files
 .RData
 .RDataTmp
