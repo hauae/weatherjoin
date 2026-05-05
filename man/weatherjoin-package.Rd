@@ -17,7 +17,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Przemek Dolowy \email{pdolowy@harper-adams.ac.uk} (Harper Adams University)
+\strong{Maintainer}: Przemek Dolowy \email{phdolowy@gmail.com} (Harper Adams University)
 
 }
 \keyword{internal}

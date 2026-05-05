@@ -1,3 +1,7 @@
+# weatherjoin 0.2.3
+
+- Updated maintainer contact email.
+
 # weatherjoin 0.2.2
 
 ## Bug fixes
